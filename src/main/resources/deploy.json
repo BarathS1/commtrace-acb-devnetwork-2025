@@ -1,0 +1,7 @@
+{
+  "runtime": "4.9-java17",
+  "workerSize": 0.1,
+  "applicationName": "client-communication-monitoring",
+  "workers": 1,
+  "autoStart": true
+}

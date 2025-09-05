@@ -1,0 +1,213 @@
+<mule xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:microsoftTeams="http://www.mulesoft.org/schema/mule/microsoftTeams" xmlns:ms-agentforce="http://www.mulesoft.org/schema/mule/ms-agentforce" xmlns:ms-aichain="http://www.mulesoft.org/schema/mule/ms-aichain" xmlns:os="http://www.mulesoft.org/schema/mule/os" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation=" http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd  http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/microsoftTeams http://www.mulesoft.org/schema/mule/microsoftTeams/current/mule-microsoftTeams.xsd http://www.mulesoft.org/schema/mule/ms-agentforce http://www.mulesoft.org/schema/mule/ms-agentforce/current/mule-ms-agentforce.xsd http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd http://www.mulesoft.org/schema/mule/ms-aichain http://www.mulesoft.org/schema/mule/ms-aichain/current/mule-ms-aichain.xsd">
+    <flow name="schedule-commtrace-filter">
+        <scheduler doc:id="3da65884-ff39-4121-890c-e8b17b6a7035" doc:name="Scheduler">
+            <scheduling-strategy>
+                <fixed-frequency timeUnit="MINUTES" frequency="30"></fixed-frequency>
+            </scheduling-strategy>
+        </scheduler>
+        <set-variable doc:id="496059b8-b1e5-4f20-9e69-88f79d552eb6" doc:name="set currRunDate" value="#[(now() >> &quot;Asia/Kolkata&quot;) as String {format: &quot;yyyy-MM-dd'T'HH:mm:ss'Z'&quot;}]" variableName="currRunDate"></set-variable>
+        <os:retrieve doc:id="f6fdc8ba-4654-4891-89b9-ca694c5df94e" doc:name="retrieve prevRunDate" key="retrieve-watermark-communication-monitoring" objectStore="Object_store" target="prevRunDate">
+            <os:default-value><![CDATA[#[((now() - |P2D|) >> "Asia/Kolkata") as Date as String {format: "yyyy-MM-dd"}]]]></os:default-value>
+        </os:retrieve>
+        <logger doc:id="83f6b2cc-69ce-4f2a-891f-8e47b9c90ced" doc:name="start logger" message="start-scheduler-client-communication--monitoring:prevRunDate= #[vars.prevRunDate]"></logger>
+        <scatter-gather doc:id="1bb787d8-bec8-4097-af54-bb74f8f92d56" doc:name="Scatter gather">
+            <route>
+                <http:request config-ref="Token_Request" doc:id="kyynif" doc:name="teams token" method="POST" path="/${secure::microsoft.tenantId}/oauth2/v2.0/token" target="teamsAccessToken" targetValue="#[payload.access_token]">
+                    <http:body><![CDATA[#[%dw 2.0
+output application/x-www-form-urlencoded
+---
+{
+	grant_type: "client_credentials",
+	client_id: p('secure::teams.clientId'),
+	client_secret: p('secure::teams.clientSecret'),
+	scope: "https://graph.microsoft.com/.default"
+}]]]></http:body>
+                    <http:headers><![CDATA[#[output application/java
+---
+{
+	"Content-Type" : "application/x-www-form-urlencoded"
+}]]]></http:headers>
+                </http:request>
+                <http:request config-ref="Request_Microsoft" doc:id="8393b063-0361-4fc9-9e7a-6c3d99811dc4" doc:name="teams chat" method="GET" path="/v1.0/me/chats">
+                    <http:headers><![CDATA[#[output application/java
+---
+{Authorization : 
+"Bearer " ++ vars.teamsAccessToken
+}]]]></http:headers>
+                    <http:query-params><![CDATA[#[output application/java
+---
+{
+	"\$filter" : "lastUpdatedDateTime gt " ++ vars.prevRunDate
+//	"\$select" : "chatType,id,topic,lastUpdatedDateTime ,createdDateTime"
+}]]]></http:query-params>
+                </http:request>
+                <foreach collection="#[payload.value]" doc:id="22573dcb-61ae-4452-8de2-e30fd088dbd6" doc:name="For Each">
+                    <set-variable doc:id="097ffbbb-e630-4f7c-bfd6-fae5ef8c0dc6" doc:name="set groupName" value="#[payload.topic]" variableName="groupName"></set-variable>
+                    <http:request config-ref="Request_Microsoft" doc:id="bd1d442f-eca9-4beb-923f-5bf2c57af73a" doc:name="teams messages" method="GET" path="#[&quot;/v1.0/me/chats/&quot; ++ payload.id ++ &quot;/messages&quot;]">
+                        <http:headers><![CDATA[#[output application/java
+---
+{Authorization : 
+"Bearer " ++ vars.teamsAccessToken
+}]]]></http:headers>
+                        <http:query-params><![CDATA[#[output application/java
+---
+{
+	"\$filter" : "lastModifiedDateTime gt " ++ vars.prevRunDate
+}]]]></http:query-params>
+                    </http:request>
+                    <ee:transform doc:id="2b34e035-bbea-4b88-9817-919eb44069e8" doc:name="teamsResponse">
+                        <ee:message></ee:message>
+                        <ee:variables>
+                            <ee:set-variable variableName="teamsResponse">
+                            <![CDATA[%dw 2.0
+output application/json
+
+---
+vars.teamsResponse default [] ++ (payload.value   filter ((item, index) ->  item.messageType == "message") map ((item, index) -> {
+   content: item.body.content replace /<[^>]+>/ with "",
+   displayName: item.from.user.displayName,
+   lastupdatedTime: item.lastModifiedDateTime,
+   application: "microsoft teams",
+   (groupName: vars.groupName) if(!isEmpty(vars.groupName))
+}))]]>
+                        </ee:set-variable>
+                        </ee:variables>
+                    </ee:transform>
+                </foreach>
+                <ee:transform doc:id="add1512e-860c-4954-8991-da3913b372f0" doc:name="response payload">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+vars.teamsResponse]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+            </route>
+            <route>
+                <http:request config-ref="Token_Request" doc:id="kyynif" doc:name="outlook token" method="POST" path="/${microsoft.tenantId}/oauth2/v2.0/token" target="outlookAccessToken" targetValue="#[payload.access_token]">
+                    <http:body><![CDATA[#[%dw 2.0
+output application/x-www-form-urlencoded
+---
+{
+	grant_type: "client_credentials",
+	client_id: p('secure::outlook.clientId'),
+	client_secret: p('secure::outlook.clientSecret'),
+	scope: "https://graph.microsoft.com/.default"
+}]]]></http:body>
+                    <http:headers><![CDATA[#[output application/java
+---
+{
+	"Content-Type" : "application/x-www-form-urlencoded"
+}]]]></http:headers>
+                </http:request>
+                <http:request config-ref="Request_Microsoft" doc:id="9f9d5e62-8366-4c3b-adc1-3fc2cc512db8" doc:name="outlook messages" method="GET" path="/v1.0/me/messages">
+                    <http:headers><![CDATA[#[output application/java
+---
+{
+	"Authorization" : 
+	"Bearer " ++ vars.outlookAccessToken
+}]]]></http:headers>
+                    <http:query-params><![CDATA[#[output application/java
+---
+{
+	"\$filter" : "receivedDateTime ge " ++ vars.prevRunDate ++ " and receivedDateTime lt " ++ vars.currRunDate
+}]]]></http:query-params>
+                </http:request>
+                <ee:transform doc:id="e287c25a-6e6d-4066-8c0f-2711d102367e" doc:name="response payload">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+import * from dw::core::Strings
+---
+payload.value map ((item, index) -> 
+{
+     "content": item.subject ++ " body " ++ replaceAll(item.bodyPreview, "/<[^>]+>/" , ""),
+      displayName: item.from.emailAddress.address,     
+      lastupdatedTime: item.lastModifiedDateTime,
+      application: "microsoft outlook", 
+})]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+            </route>
+        </scatter-gather>
+        <ee:transform doc:id="82fd9d78-a517-477f-9f75-6a76991f4983" doc:name="concat outlook and teams">
+            <ee:message>
+                <ee:set-payload doc:id="3ba8e284-290c-4961-b2c6-e0a3c168d8dd" doc:name="Set payload"><![CDATA[%dw 2.0
+output application/json
+--- 
+flatten(payload..payload)]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <foreach doc:id="caabf28d-20ba-4cfc-a683-624356af1fae" doc:name="For Each">
+            <set-variable doc:id="1662b6ac-3390-4bb1-a76b-200845f48d83" doc:name="Set toxicityDetection" value="#[payload]" variableName="toxicityDetection"></set-variable>
+            <choice doc:id="017d0361-be41-48a3-bfb5-b93de81e2292" doc:name="check toxicity message available?">
+                <when expression="#[!isEmpty(payload.content)]">
+                    <http:request doc:id="7e2235b1-2de5-4177-92a8-f93bf0200c0c" doc:name="request toxicitydetection" method="POST" url="https://mule-ai-agent-60092z.5sc6y6-4.usa-e2.cloudhub.io/toxicitydetection">
+                        <http:body><![CDATA[#[payload.content]]]></http:body>
+                    </http:request>
+                    <choice doc:id="7eda23b0-0ef0-4b61-ba0c-d5ec546fee1c" doc:name="check toxicitydetection found?">
+                        <when expression="#[(payload.response.results.categories flatMap ((item, index) -> valuesOf(item) contains true))[0]]">
+                            <ee:transform doc:id="0f7f734d-5182-403b-83c8-ecf1310ffa52" doc:name="payload mapping">
+                                <ee:message>
+                                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+        "Foul Message Detected" : if(vars.toxicityDetection.application ~= "microsoft teams")vars.toxicityDetection.content
+                                  else vars.toxicityDetection.content splitBy "body" reduce ((item, accumulator) -> 
+                                       {
+                                         "subject": accumulator,
+                                         "body": item
+                                       }),
+        "From": vars.toxicityDetection.displayName,
+        "TimeStamp": vars.toxicityDetection.lastupdatedTime,
+        "RecievedApplication": vars.toxicityDetection.application
+}]]></ee:set-payload>
+                                </ee:message>
+                            </ee:transform>
+                            <ee:transform doc:id="fd683eb0-a7db-4f08-8cee-375d0d5cc9d9" doc:name="update response to text/plain">
+                                <ee:message>
+                                    <ee:set-payload><![CDATA[%dw 2.0
+output text/plain
+---
+if (payload."Foul Message Detected" is String)
+    "An Foul message received from " ++ payload.From ++ " via " ++ payload."RecievedApplication" ++ 
+    " on " ++ payload.TimeStamp ++ ". The message content is \"" ++ 
+    (payload."Foul Message Detected" 
+        as String {class: "java.lang.String"} 
+        replace /[\r\n\u00ad\u200d\u2000-\u200F]+/ with " " 
+     ) ++ "\"."
+else 
+"An Foul message received from " ++ payload.From ++ " via " ++ payload."RecievedApplication" ++ " on " ++ payload.TimeStamp ++
+". The subject of the email is \"" ++ payload."Foul Message Detected".subject ++ "\". " ++
+"The body of the message says: \"" ++ 
+    (payload."Foul Message Detected".body 
+        as String {class: "java.lang.String"} 
+        replace /[\r\n\u00ad\u200d\u2000-\u200F]+/ with " " 
+     ) ++ "\"."]]></ee:set-payload>
+                                </ee:message>
+                            </ee:transform>
+                            <http:request doc:id="3c01879d-f813-4475-961b-3942f2a8581b" doc:name="slack api" method="POST" url="https://mc-slack-sapi-xfsz0t.5sc6y6-4.usa-e2.cloudhub.io/api/alert">
+                                <http:body><![CDATA[#[%dw 2.0
+output application/json
+---
+{"text": payload}]]]></http:body>
+                                <http:headers><![CDATA[#[output application/java
+---
+{
+	client_secret : p('secure::slack.clientSecret'),
+	client_id : "p('secure::slack.clientId')
+}]]]></http:headers>
+                            </http:request>
+                        </when>
+                    </choice>
+                </when>
+            </choice>
+        </foreach>
+        <os:store doc:id="81629161-5020-4033-a7b7-9e3af769d7c9" doc:name="store currRunDate" key="retrieve-watermark-communication-monitoring" objectStore="Object_store">
+            <os:value><![CDATA[#[vars.currRunDate]]]></os:value>
+        </os:store>
+        <logger doc:id="a9e053dc-a76a-4e50-b463-b05e902fbd4a" doc:name="end logger" message="end-scheduler-client-communication--monitoring: Current run on: #[vars.currRunDate] CorrelationId: #[correlationId]"></logger>
+    </flow>
+    <sub-flow name="name1"></sub-flow>
+</mule>
