@@ -1,0 +1,14 @@
+microsoft:
+  tenantId: "![42X+W3lTiakPzOeAV6q1tHBvVMJqLf1fUPaqKe/q0NMsyrNyEsqa2NIRMbqvkwgd]"
+
+teams:
+  clientId: "![YOT/Plfz18oB91TR7ewNNw7v5rZjxQu7XfN6nYyFHeIji56T9HQVDpWbwRaRUQ2P]"
+  clientSecret: "![Ajc6Q5P6cPip9vd6JF6VSlojykm6g+2k7unyQPaBkv+V9+EmBR7Ql4UJs+tghFjB]"
+  
+slack:
+  clientId: "![KfS7Qc8See4Ux2+iAY4bYgmXKlL/T1k9PBkWtk7d4qUVaUfTt3Vb8HJeBbIxtyA9]"
+  clientSecret: "![GGXc3i992lMqxWEFw9SsTU1ZMkNYZ52Quxw8Pd6SKk5Pq8FUPQq/A7JHjRYuC3kw]"
+  
+outlook:
+  clientId: "![Oe2YiwIDCxEBT8xcPy/zDoAkVLNEi9WASir5+wQJQk2GQQ6Xmk2UIM4GkbQD/fkf]"
+  clientSecret: "![4bRCMpFJIOxCDu3eKYzEd0R5yv/lb3xDDbRBtF7j6Hx/HVIHakEIG3zXu9kp54ER]"

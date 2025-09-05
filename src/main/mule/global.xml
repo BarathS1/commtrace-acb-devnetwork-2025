@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ms-aichain="http://www.mulesoft.org/schema/mule/ms-aichain" xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:secure-properties="http://www.mulesoft.org/schema/mule/secure-properties" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/ms-aichain http://www.mulesoft.org/schema/mule/ms-aichain/current/mule-ms-aichain.xsd
+	http://www.mulesoft.org/schema/mule/secure-properties http://www.mulesoft.org/schema/mule/secure-properties/current/mule-secure-properties.xsd">
+	<http:request-config name="Token_Request" doc:name="HTTP Request configuration" doc:id="62f25234-3f39-487c-b4eb-639899d58a1a" >
+		<http:request-connection host="login.microsoftonline.com" protocol="HTTPS"/>
+	</http:request-config>	
+	<http:request-config name="Request_Microsoft" doc:name="HTTP Request configuration" doc:id="4f51d91b-51da-4e82-9124-660ad5902eda" >
+		<http:request-connection protocol="HTTPS" host="graph.microsoft.com" />
+	</http:request-config>
+	<os:object-store name="Object_store" doc:name="Object store" doc:id="0f7183a6-f1ea-42cc-a202-b06450fece88" entryTtl="1" entryTtlUnit="HOURS" expirationIntervalUnit="HOURS" />
+	<http:request-config name="HTTP_Request_configuration1" doc:name="HTTP Request configuration" doc:id="e8e1c7da-87f2-4095-a235-7f9308d90c62" >
+		<http:request-connection host="graph.microsoft.com" />
+	</http:request-config>
+    <configuration-properties doc:name="Configuration properties" doc:id="a7d92c61-464f-4917-8be9-3d8f7b69f75e" file="config/${mule.env}.yaml" />
+    <secure-properties:config name="Secure_Properties_Config" doc:name="Secure Properties Config" doc:id="bafc5c48-7638-42df-aaf1-e5e1a601ed68" file="config/${mule.env}.yaml" key="${secure.mule.key}" encoding="UTF-8" />
+</mule>
